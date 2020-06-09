@@ -1,30 +1,116 @@
 ---
 title: "Project 1"
 author: "Yun Ji"
-date: "6/4/2020"
-output: html_document
+date: "6/12/2020"
+output:
+  rmarkdown::github_document:
+    toc: yes
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r import, include = FALSE}
+library(tidyverse)
+library(httr)
+library(jsonlite)
 ```
 
-## Including Plots
+### Query API Functions
+To query the NHL API, I first set up the variables and data structures needed as inputs to my API query functions. The base URL is stored as a character string, and the individual API endpoints are stored in a list called `endpoints` - this is to help future-proof expanding the queries to include other API endpoints later on.
+```{r API variables}
+baseURL <- "https://records.nhl.com/site/api"
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+endpoints <- list()
+endpoints$franchise <- "/franchise"
+endpoints$teamTotals <- "/franchise-team-totals"
+endpoints$seasonRecords <- "/franchise-season-records?cayenneExp=franchiseId=ID"
+endpoints$goalieRecords <- "/franchise-goalie-records?cayenneExp=franchiseId=ID"
+endpoints$skaterRecords <- "/franchise-skater-records?cayenneExp=franchiseId=ID"
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Next I created functions to support querying the API. The function `createEndpoint` checks the user input for a valid endpoint, and if valid returns the endpoint URL as the output.
+```{r createEndpoint function}
+createEndpoint <- function(baseURL, endpointList, endpointName) {
+  endpoint <- endpointList[[endpointName]]
+  
+  if(is.null(endpoint)) {
+    stop(paste0("Invalid endpoint for ", endpointName))
+  } else {
+    return(paste0(baseURL, endpoint))
+  }
+}
+```
+
+Functions `getDataNoOptions` and `getDataByFranchiseId` handles the two types of endpoints in the NHL API: those requiring no further input from the user, and those that require the user to specify a numerical value for franchise ID.
+```{r getData functions}
+getDataNoOptions <- function(fullURL) {
+  rawData <- fromJSON(content(GET(fullURL), "text"), flatten=TRUE)
+  return(tbl_df(rawData$data))
+}
+
+getDataByFranchiseId <- function(fullURL, franchiseId) {
+  franchiseId <- as.numeric(franchiseId)
+  
+  if(is.na(franchiseId)) {
+    stop("Franchise ID must be a number")
+  } else if(franchiseId < 1 | franchiseId > 38) {
+    stop("Franchise ID must between 1 and 38")
+  }
+
+  fullURL <- str_replace(fullURL, "ID", as.character(franchiseId))
+  rawData <- fromJSON(content(GET(fullURL), "text"), flatten=TRUE)
+  return(tbl_df(rawData$data))
+}
+```
+
+Finally, the wrapper function `runNhlApi` acts as an orchestrator and handles the top-down logic of getting data from the NHL API. The data is returned as a `tibble` table.
+```{r runNhlApi function}
+runNhlApi <- function(baseURL, endpointList, endpointName, ...) {
+  fullURL <- createEndpoint(baseURL, endpointList, endpointName)
+
+  if(endpointName %in% c("franchise","teamTotals")) {
+    data <- getDataNoOptions(fullURL)
+  } else if(endpointName %in% c("seasonRecords","goalieRecords","skaterRecords")) {
+    data <- getDataByFranchiseId(fullURL, ...)
+  } else {
+    stop("No data found!")
+  }
+  return(data)
+}
+```
+
+### Query the Data from the NHL API
+I run my functions with the appropriate user inputs to query the needed data from the NHL API. For the franchise-specific data, I picked the Blackhawks since I am from Chicago.
+```{r query NHL data}
+franchise <- runNhlApi(baseURL, endpoints, "franchise")
+teamTotals <- runNhlApi(baseURL, endpoints, "teamTotals")
+seasonRecordsBlackhawks <- runNhlApi(baseURL, endpoints, "seasonRecords", 11)
+goalieRecordsBlackhawks <- runNhlApi(baseURL, endpoints, "goalieRecords", 11)
+skaterRecordsBlackhawks <- runNhlApi(baseURL, endpoints, "skaterRecords", 11)
+```
+
+### Plotting Data
+For my first plot, I filtered the list of franchises to just the active franchises, then created a scatterplot of their regular season win percentage vs. the starting year of the franchise. I also created the variable `nation` to differentiate Canadian and U.S. teams, and color-coded the data points of the scatterplot by nation.
+```{r scatterplot - Win Percent vs. Starting Year}
+canada_franchises <- c(1,2,4,5,20,21,25,30,35)
+
+teamTotals <- teamTotals %>%
+  mutate(nation = ifelse(franchiseId %in% canada_franchises, "Canada", "USA"))
+
+regularSeasonTeamTotals <- teamTotals %>% 
+  filter(gameTypeId == 2, is.na(lastSeasonId)) %>%
+  mutate(firstSeason = as.numeric(substr(firstSeasonId,1,4)),
+         ties = ifelse(is.na(ties), 0, ties),
+         winPercent = (wins+0.5*ties) / gamesPlayed)
+
+g <- ggplot(data = regularSeasonTeamTotals, aes(x = firstSeason, y = winPercent, color = nation))
+g + geom_point(size = 4, alpha = 0.5) + 
+    labs(title = "NHL Active Teams Regular Season Win Percentage vs. Starting Year",
+         x = "Starting Year", y = "Win Percentage",
+         color = "Nation", alpha = "") +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    scale_color_manual(values = c("red","blue"))
+```
+
