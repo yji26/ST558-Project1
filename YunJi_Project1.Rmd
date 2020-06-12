@@ -57,7 +57,7 @@ createEndpoint <- function(baseURL, endpointList, endpointName) {
 Functions `getDataNoOptions` and `getDataByFranchiseId` handles the two types of endpoints in the NHL API: those requiring no further input from the user, and those that require the user to specify a numerical value for franchise ID. The functions will query the API for JSON data, flatten the JSON object and convert the data returned into a `tibble` data frame.
 ```{r getData functions}
 getDataNoOptions <- function(fullURL) {
-  rawData <- fromJSON(content(GET(fullURL), "text"), flatten=TRUE)
+  rawData <- fromJSON(content(GET(fullURL), "text"), flatten = TRUE)
   return(tbl_df(rawData$data))
 }
 
@@ -71,7 +71,7 @@ getDataByFranchiseId <- function(fullURL, franchiseId) {
   }
 
   fullURL <- str_replace(fullURL, "ID", as.character(franchiseId))
-  rawData <- fromJSON(content(GET(fullURL), "text"), flatten=TRUE)
+  rawData <- fromJSON(content(GET(fullURL), "text"), flatten = TRUE)
   return(tbl_df(rawData$data))
 }
 ```
@@ -120,17 +120,17 @@ regularSeasonTeamTotals <- teamTotals %>%
 
 g <- ggplot(data = regularSeasonTeamTotals, aes(x = firstSeason, y = winPercent, color = nation))
 g + geom_point(size = 4, alpha = 0.5) + 
-    labs(title = "NHL Active Teams Regular Season Win Percentage vs. Starting Year",
-         x = "Starting Year", y = "Win Percentage",
-         color = "Nation", alpha = "") +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    scale_color_manual(values = c("red","blue"))
+  labs(title = "NHL Active Franchises Regular Season Win Percentage vs. Starting Year",
+       x = "Starting Year", y = "Win Percentage",
+       color = "Nation", alpha = "") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_color_manual(values = c("red","blue"))
 ```
 
-From the plot, we can see that there are many more U.S. teams than Canadian teams, which makes sense as the U.S. is more populous. In addition, we see that there is a big gap in starting year where no active franchises began operations between the early 1930s and the mid 1960s - a long period of separation between the "Original Six" NHL teams and the newer teams added in the NHL's aggressive expansion from the late 1960s onwards (there were actually a few NHL teams that were founded during this interim period, however they ceased operations and are therefore not included among active franchises). Most teams' lifetime winning percentage hover around 50% as one might expect, but we also see more variability as we get closer to the present day.
+From the plot, we can see that there are many more U.S. teams than Canadian teams, which makes sense as the U.S. is more populous. In addition, we see that there is a big gap in starting year where no active franchises began operations between the early 1930s and the mid 1960s - a long period of separation between the "Original Six" NHL teams and the newer teams added in the NHL's aggressive expansion from the late 1960s onwards (there were a few NHL teams that were founded during this interim period, however they ceased operations and are therefore not included among active franchises). Most teams' lifetime winning percentage hover around 50% as one might expect, but we also see more variability as we get closer to the present day.
 
 ### Season Results for Central Teams
-From the NHL API, I've also queried other endpoints to obtain the season-by-season results of individual teams. To do this, I added the new endpoint to my `list` of endpoints:
+From the NHL API, I've also queried other endpoints to obtain the season-by-season results of individual teams. To do this, I added the new endpoint to my list of `endpoints`:
 ```{r new endpoint}
 endpoints$seasonResults <- "/franchise-season-results?cayenneExp=franchiseId=ID"
 ```
@@ -181,4 +181,58 @@ kable(cont_table, caption = "NHL Central Playoff Appearances since 2000 (improve
 ```
 
 This table looks better than before. While both the Nashville Predators and St. Louis Blues have reached the playoffs 12 times since 2000, the Chicago Blackhawks took the most advantage of their playoff appearances, reaching (and winning!) the Stanley Cup Final three times in the last 20 years. The Atlanta Thrashers/Winnipeg Jets have experienced the most futility, reaching the playoffs only four times and getting past the 1st round only once.
+
+### Season Results Barplot
+Using the `group_by` and `summarise` functions, I aggregated all seasons played by each franchise and tallied the total games played, regular season and playoffs. This includes seasons before year 2000, and required a couple more team name changes for the **Quebec Nordiques** becoming the **Colorado Avalanche** and the **Minnesota North Stars** migrating south as the **Dallas Stars**. Since I don't need `geom_bar` to aggregate my data, I used the `stat = "identity"` option; plotting regular season and playoff bars side-by-side for each franchise instead of stacked required the option `position = "dodge"`. I also used custom bar colors and modified the x-axis franchise names to improve the look of the chart.
+```{r season barplot}
+seasonResultsCentralAgg <- seasonResultsCentral %>%
+  mutate(teamName = ifelse(teamName == "Atlanta Thrashers", "Winnipeg Jets", teamName),
+         teamName = ifelse(teamName == "Minnesota North Stars", "Dallas Stars", teamName),
+         teamName = ifelse(teamName == "Quebec Nordiques", "Colorado Avalanche", teamName)) %>%
+  group_by(teamName, gameTypeId) %>%
+  summarise(totalGamesPlayed = sum(gamesPlayed)) %>%
+  mutate(gameType = ifelse(gameTypeId == 2, "Regular Season", "Playoffs"),
+         gameType = fct_relevel(gameType, "Regular Season", "Playoffs"))
+
+g <- ggplot(data = seasonResultsCentralAgg, aes(x = teamName, y = totalGamesPlayed, fill = gameType))
+g + geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(name = "", values = c("grey40","orange")) +
+  scale_x_discrete(labels = c("Chicago Blackhawks" = "Chicago\nBlackhawks",
+                              "Colorado Avalanche" = "Colorado\nAvalanche",
+                              "Dallas Stars" = "Dallas\nStars",
+                              "Minnesota Wild" = "Minnesota\nWild",
+                              "Nashville Predators" = "Nashville\nPredators",
+                              "St. Louis Blues" = "St. Louis\nBlues",
+                              "Winnipeg Jets" = "Winnipeg\nJets")) +
+  labs(title = "NHL Central Teams Total Games Played\nRegular Season and Playoffs",
+       x = "", y = "Games Played") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+I spent quite some time getting this chart to display what I intended. I learned that `geom_bar` can be used with a raw data frame to aggregate and visualize some data, but it is not flexible enough to handle all types of aggregations. Sometimes it's simpler to create a new data frame with the exact data you want to present, then use `geom_bar` focusing only on the visualization aspect. And although the barplot is a clear visualization, it doesn't speak to the relative success of these teams: older teams played more regular season games and more playoff games, whereas newer teams had fewer of both.
+
+### Season Results Boxplot
+To compare the relative success of Central Division teams, I plotted the win percentage for each season that each team experienced as both a boxplot and a scatterplot. Instead of using `teamName`, this time I utilized `franchiseId` as the team's identifier and renamed this label from the `franchiseId` number to their corresponding team names. Instead of listing teams alphabetically as in the barplot, this time I ordered teams by time of founding to see if in the division there are any trends going from oldest to newest teams.
+
+Note that since the scatterplot data points must come in front of the boxplot, the `geom_point` function is invokved after the `geom_boxplot` function in order to overlay on top of it. With the scatterplot, the `jitter` position option was used to separate the data points across the horizontal axis. Custom colors used to represent each team come from their official team colors, taken from [this helpful website](https://teamcolorcodes.com/nhl-team-color-codes/).
+```{r season boxplot}
+g <- ggplot(data=seasonResultsCentralRegular, aes(x = as.factor(franchiseId), y = winPercent, 
+                                                  color = as.factor(franchiseId)))
+g + geom_boxplot(color = "black", outlier.shape = NA) + 
+  geom_point(position = "jitter") + 
+  labs(title = "NHL Central Teams Win Percentages for Each Regular Season",
+       x = "", y = "Regular Season Win Percentage") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none") +
+  scale_x_discrete(labels=c("11" = "Chicago\nBlackhawks",
+                            "15" = "Dallas\nStars",
+                            "18" = "St. Louis\nBlues",
+                            "27" = "Colorado\nAvalanche",
+                            "34" = "Nashville\nPredators",
+                            "35" = "Winnipeg\nJets",
+                            "37" = "Minnesota\nWild")) +
+  scale_color_manual(values=c("#CF0A2C","#006847","#002F87","#6F263D","#FFB81C","#041E42","#154734"))
+```
+
+With the longest history, the Chicago Blackhawks experienced the widest dispersion of seasonal outcomes and the boxplot reflects this. Newer teams such as the Minnesota Wild and Winnipeg Jets have played fewer seasons, thus have fewer data points and somewhat less dispersion. In the regular season, the Colorado Avalanche and St. Louis Blues have enjoyed the greatest levels of success, with the highest median win percentages.
 
