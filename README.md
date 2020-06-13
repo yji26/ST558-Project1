@@ -318,7 +318,7 @@ g + geom_point(size = 4, alpha = 0.5) +
   scale_color_manual(values = c("red","blue"))
 ```
 
-![](YunJi_Project1_files/figure-gfm/scatterplot%20-%20Win%20Percent%20vs.%20Starting%20Year-1.png)<!-- -->
+![](YunJi_Project1_files/figure-gfm/scatterplot-1.png)<!-- -->
 
 From the plot, I see that there are many more U.S. teams than Canadian
 teams, which makes sense as the U.S. is more populous. In addition,

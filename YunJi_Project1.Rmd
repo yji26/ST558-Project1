@@ -117,7 +117,7 @@ Besides the `id` column which is a row number and therefore not very useful, the
 
 ### History and Winning Percentage of NHL Franchises
 For my first plot, I filtered the list of franchises to just the active franchises, performed data wrangling to get a team's first season, fill `NA` values in column `ties` and compute a win percentage using regular season wins, ties, and games played. I then created a scatterplot of their regular season win percentage vs. the starting year of the franchise. I also created the variable `nation` to differentiate Canadian and U.S. teams, and color-coded the data points of the scatterplot by nation.
-```{r scatterplot - Win Percent vs. Starting Year}
+```{r scatterplot, dpi = 120}
 canada_franchises <- c(1,2,4,5,20,21,25,30,35)
 
 teamTotals <- teamTotals %>%
@@ -195,7 +195,7 @@ This table looks better than before. While both the Nashville Predators and St. 
 
 ### Season Results Barplot
 Using the `group_by` and `summarise` functions, I aggregated all seasons played by each franchise and tallied the total games played, regular season and playoffs. This includes seasons before year 2000, and required a couple more team name changes for the **Quebec Nordiques** becoming the **Colorado Avalanche** and the **Minnesota North Stars** migrating south as the **Dallas Stars**. Since I don't need `geom_bar` to aggregate my data, I used the `stat = "identity"` option; plotting regular season and playoff bars side-by-side for each franchise instead of stacked required the option `position = "dodge"`. I also used custom bar colors and modified the x-axis franchise names to improve the look of the chart.
-```{r season barplot}
+```{r season barplot, dpi = 120}
 seasonResultsCentralAgg <- seasonResultsCentral %>%
   mutate(teamName = ifelse(teamName == "Atlanta Thrashers", "Winnipeg Jets", teamName),
          teamName = ifelse(teamName == "Minnesota North Stars", "Dallas Stars", teamName),
@@ -226,7 +226,7 @@ I spent quite some time getting this chart to display what I intended. I learned
 To compare the relative success of Central Division teams, I plotted the win percentage for each season that each team experienced as both a boxplot and a scatterplot. Instead of using `teamName`, this time I utilized `franchiseId` as the team's identifier and renamed this label from the `franchiseId` number to their corresponding team names. Instead of listing teams alphabetically as in the barplot, this time I ordered teams by time of founding to see if in the division there are any trends going from oldest to newest teams.
 
 Note that since the scatterplot data points must come in front of the boxplot, the `geom_point` function is invokved after the `geom_boxplot` function in order to overlay on top of it. With the scatterplot, the `jitter` position option was used to separate the data points across the horizontal axis. Custom colors used to represent each team come from their official team colors, taken from [this helpful website](https://teamcolorcodes.com/nhl-team-color-codes/).
-```{r season boxplot}
+```{r season boxplot, dpi = 120}
 g <- ggplot(data=seasonResultsCentralRegular, aes(x = as.factor(franchiseId), y = winPercent, 
                                                   color = as.factor(franchiseId)))
 g + geom_boxplot(color = "black", outlier.shape = NA) + 
@@ -286,7 +286,7 @@ playerRecordsCentral <- rbind(skaterRecordsCentral %>% select(franchiseName, pos
 
 ### Displaying Player Data
 Since the `positionCode` column codes player positions as single-letter codes, I created an additional field to provide the full names for each position, then displayed the counts of player positions in a contingency table (using `rowSums` to create a new variable for `Total Players`) and a stacked barplot.
-```{r player positions}
+```{r player positions, dpi = 120}
 playerRecordsCentral <- playerRecordsCentral %>%
   mutate(positionName = "Unknown") %>%
   mutate(positionName = ifelse(positionCode == "C", "Center", positionName),
