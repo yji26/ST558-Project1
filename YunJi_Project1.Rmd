@@ -21,15 +21,15 @@ library(knitr)
 ## Technical Overview
 
 ### JSON Data
-JavaScript Object Notation, abbreviated as JSON, is a human-readable to store and transmit data. JSON data objects consist of one or more key-value pairs, where the key describes the nature of the data being shared and its value is the data itself. For example, a JSON can contain a key-value pair of `apple: 10` indicating 10 apples and another key-value pair of `orange: 15` for 15 oranges. Key-value pairs in JSON can also be nested, thus imposing hierarchy on the data if necessary: an example key of `apples` can have as its value a collection of different types of apples and their counts, such as `red delicious: 8` and `mcintosh: 2`.
+JavaScript Object Notation, abbreviated as JSON, is a human-readable text object used to store and transmit data. JSON data objects consist of one or more key-value pairs, where the key describes the data field and its value is the data itself. For example, a JSON can contain a key-value pair of `apple: 10` indicating 10 apples and another key-value pair of `orange: 15` for 15 oranges. Key-value pairs in JSON can also be nested, thus imposing hierarchy on the data if needed: an example key of `apples` can have as its value a collection of different types of apples and their counts, such as `red delicious: 8` and `mcintosh: 2`.
 
-JSON data objects are not dependent on any programming language, and indeed most modern programming languages have functions and packages for creating or reading JSON data. Because of these characteristics, JSON has found wide adoption as a method for transmitting numerical and text data between disparate computer systems and databases.
+JSON data objects are not dependent on any single programming language, and indeed most modern programming languages have functions and packages for creating or reading JSON data. Because of these characteristics, JSON has found wide adoption as a method for transmitting numerical and text data between disparate computer systems and databases.
 
 ### JSON Processing in R
 In R, there are free, open-source packages to process JSON data objects; these include `rjson`, `RJSONIO` and `jsonlite`. Each package handles JSON slightly differently, including how to process nested structures, missing values, and special characters. `rjson` is generally fastest but has the fewest advanced features. `RJSONIO` has many features but is by far the slowest. `jsonlite` occupies a good middle ground, offering speeds comparable to `rjson` while having nearly as many features as `RJSONIO`, and is therefore my choice to process the JSON data objects involved in this project. Speed and feature comparisons can be found on [this website](https://rstudio-pubs-static.s3.amazonaws.com/31702_9c22e3d1a0c44968a4a1f9656f1800ab.html).
 
 ## Query NHL API Functions
-To query the NHL API, I first set up the variables and data structures needed as inputs to my API query functions. The base URL is stored as a character string, and the individual API endpoints are stored in a list called `endpoints` - this is to help future-proof expanding the queries to include other API endpoints later on.
+To query the NHL API, I first set up the variables and data structures needed as inputs to my API query functions. The base URL is stored as a character string, and the individual API endpoints are stored in a list called `endpoints` - this is to help future-proof expanding the queries in order to add other API endpoints later on.
 ```{r API variables}
 baseURL <- "https://records.nhl.com/site/api"
 
@@ -41,7 +41,7 @@ endpoints$goalieRecords <- "/franchise-goalie-records?cayenneExp=franchiseId=ID"
 endpoints$skaterRecords <- "/franchise-skater-records?cayenneExp=franchiseId=ID"
 ```
 
-Next I created functions to support querying the API. The function `createEndpoint` checks the user input for a valid endpoint, and if valid returns the endpoint URL as the output.
+Next I created functions to support querying the API. The function `createEndpoint` checks the user input for a valid endpoint, and if valid returns the complete endpoint URL as the output.
 ```{r createEndpoint function}
 createEndpoint <- function(baseURL, endpointList, endpointName) {
   endpoint <- endpointList[[endpointName]]
@@ -92,8 +92,8 @@ runNhlApi <- function(baseURL, endpointList, endpointName, ...) {
 }
 ```
 
-## Query the Data from the NHL API
-I run my functions with the appropriate user inputs to query the needed data from the NHL API. For the franchise-specific data, I picked the Blackhawks since I am from Chicago.
+## Query Data from the NHL API
+I ran my functions with the appropriate user inputs to query the needed data from the NHL API. For the franchise-specific data, I picked the Blackhawks since I am from Chicago.
 ```{r query NHL data}
 franchise <- runNhlApi(baseURL, endpoints, "franchise")
 teamTotals <- runNhlApi(baseURL, endpoints, "teamTotals")
@@ -111,10 +111,12 @@ goalieRecordsBlackhawks
 skaterRecordsBlackhawks
 ```
 
+Besides the `id` column which is a row number and therefore not very useful, the other columns have comprehensible names for data (at least to a hockey fan), but some of the data values require additional cleanup, as we will see below. 
+
 ## Plotting Data
 
 ### History and Winning Percentage of NHL Franchises
-For my first plot, I filtered the list of franchises to just the active franchises, then created a scatterplot of their regular season win percentage vs. the starting year of the franchise. I also created the variable `nation` to differentiate Canadian and U.S. teams, and color-coded the data points of the scatterplot by nation.
+For my first plot, I filtered the list of franchises to just the active franchises, performed data wrangling to get a team's first season, fill `NA` values in column `ties` and compute a win percentage using regular season wins, ties, and games played. I then created a scatterplot of their regular season win percentage vs. the starting year of the franchise. I also created the variable `nation` to differentiate Canadian and U.S. teams, and color-coded the data points of the scatterplot by nation.
 ```{r scatterplot - Win Percent vs. Starting Year}
 canada_franchises <- c(1,2,4,5,20,21,25,30,35)
 
@@ -136,10 +138,10 @@ g + geom_point(size = 4, alpha = 0.5) +
   scale_color_manual(values = c("red","blue"))
 ```
 
-From the plot, we can see that there are many more U.S. teams than Canadian teams, which makes sense as the U.S. is more populous. In addition, we see that there is a big gap in starting year where no active franchises began operations between the early 1930s and the mid 1960s - a long period of separation between the "Original Six" NHL teams and the newer teams added in the NHL's aggressive expansion from the late 1960s onwards (there were a few NHL teams that were founded during this interim period, however they ceased operations and are therefore not included among active franchises). Most teams' lifetime winning percentage hover around 50% as one might expect, but we also see more variability as we get closer to the present day.
+From the plot, I see that there are many more U.S. teams than Canadian teams, which makes sense as the U.S. is more populous. In addition, there is a big gap in starting year where no active franchises began operations between the early 1930s and the mid 1960s - a long period of separation between the "Original Six" NHL teams and the newer teams added in the NHL's expansion from the late 1960s onwards (there were a few NHL teams that were founded during this interim period, however they ceased operations and are therefore not included among active franchises). Most teams' lifetime winning percentages hover around 50% as one might expect, but there is more variability as one gets closer to the present day.
 
 ### Season Results for Central Teams
-From the NHL API, I've also queried other endpoints to obtain the season-by-season results of individual teams. To do this, I added the new endpoint to my list of `endpoints`:
+From the NHL API, I've also queried other endpoints to obtain the season-by-season results of individual teams. To do this, I added a new endpoint to my list of `endpoints`:
 ```{r new endpoint}
 endpoints$seasonResults <- "/franchise-season-results?cayenneExp=franchiseId=ID"
 ```
@@ -245,3 +247,86 @@ g + geom_boxplot(color = "black", outlier.shape = NA) +
 
 With the longest history, the Chicago Blackhawks experienced the widest dispersion of seasonal outcomes and the boxplot reflects this. Newer teams such as the Minnesota Wild and Winnipeg Jets have played fewer seasons, thus have fewer data points and somewhat less dispersion. In the regular season, the Colorado Avalanche and St. Louis Blues have enjoyed the greatest levels of success, with the highest median win percentages.
 
+### Querying Player-Level Data
+I also explored player-level data from the `skaterRecords` and `goalieRecords` endpoints in the NHL API. Again, I downloaded data for teams from the Central Division, then concatenated them into a single data frame for use.
+```{r query player-level data}
+skaterRecordsBlues <- runNhlApi(baseURL, endpoints, "skaterRecords", 18)
+skaterRecordsStars <- runNhlApi(baseURL, endpoints, "skaterRecords", 15)
+skaterRecordsWild <- runNhlApi(baseURL, endpoints, "skaterRecords", 37)
+skaterRecordsPredators <- runNhlApi(baseURL, endpoints, "skaterRecords", 34)
+skaterRecordsJets <- runNhlApi(baseURL, endpoints, "skaterRecords", 35)
+skaterRecordsAvalanche <- runNhlApi(baseURL, endpoints, "skaterRecords", 27)
+
+skaterRecordsCentral <- rbind(skaterRecordsBlackhawks,
+                              skaterRecordsBlues,
+                              skaterRecordsStars,
+                              skaterRecordsWild,
+                              skaterRecordsPredators,
+                              skaterRecordsJets,
+                              skaterRecordsAvalanche)
+
+goalieRecordsBlues <- runNhlApi(baseURL, endpoints, "goalieRecords", 18)
+goalieRecordsStars <- runNhlApi(baseURL, endpoints, "goalieRecords", 15)
+goalieRecordsWild <- runNhlApi(baseURL, endpoints, "goalieRecords", 37)
+goalieRecordsPredators <- runNhlApi(baseURL, endpoints, "goalieRecords", 34)
+goalieRecordsJets <- runNhlApi(baseURL, endpoints, "goalieRecords", 35)
+goalieRecordsAvalanche <- runNhlApi(baseURL, endpoints, "goalieRecords", 27)
+
+goalieRecordsCentral <- rbind(goalieRecordsBlackhawks,
+                              goalieRecordsBlues,
+                              goalieRecordsStars,
+                              goalieRecordsWild,
+                              goalieRecordsPredators,
+                              goalieRecordsJets,
+                              goalieRecordsAvalanche)
+
+playerRecordsCentral <- rbind(skaterRecordsCentral %>% select(franchiseName, positionCode), 
+                              goalieRecordsCentral %>% select(franchiseName, positionCode))
+```
+
+### Displaying Player Data
+Since the `positionCode` column codes player positions as single-letter codes, I created an additional field to provide the full names for each position, then displayed the counts of player positions in a contingency table (using `rowSums` to create a new variable for `Total Players`) and a stacked barplot.
+```{r player positions}
+playerRecordsCentral <- playerRecordsCentral %>%
+  mutate(positionName = "Unknown") %>%
+  mutate(positionName = ifelse(positionCode == "C", "Center", positionName),
+         positionName = ifelse(positionCode == "D", "Defenseman", positionName),
+         positionName = ifelse(positionCode == "L", "Left Wing", positionName),
+         positionName = ifelse(positionCode == "R", "Right Wing", positionName),
+         positionName = ifelse(positionCode == "G", "Goaltender", positionName))
+
+cont_table <- table(playerRecordsCentral$franchiseName, playerRecordsCentral$positionName)
+cont_table <- cbind(cont_table, "Total Players" = rowSums(cont_table))
+kable(cont_table, caption = "NHL Central Division Teams - Number of Players by Position")
+
+g <- ggplot(data = playerRecordsCentral, aes(x = franchiseName, fill = positionName))
+g + geom_bar() +
+  scale_y_continuous(limits = c(0,1000), breaks = seq(0,1200,200), expand = c(0,0)) +
+  scale_fill_manual(name = "Player Position",
+                    values = c("darkgrey","darkgreen","darkblue","darkred","darkorange")) +
+  scale_x_discrete(labels = c("Chicago Blackhawks" = "Chicago\nBlackhawks",
+                              "Colorado Avalanche" = "Colorado\nAvalanche",
+                              "Dallas Stars" = "Dallas\nStars",
+                              "Minnesota Wild" = "Minnesota\nWild",
+                              "Nashville Predators" = "Nashville\nPredators",
+                              "St. Louis Blues" = "St. Louis\nBlues",
+                              "Winnipeg Jets" = "Winnipeg\nJets")) +
+  labs(title = "NHL Central Teams: Number of Players at Each Position",
+       x = "", y = "Number of Players") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Trends here are consistent with other plots in this report: the Blackhawks, with the longest history, have had the greatest number of players with 912. The three youngest teams, the Minnesota Wild, Nasheville Predators and Winnipeg Jets have the lowest player counts. Nasheville's 10 goaltenders represent the lowest count in the table, thanks to the longtime play of goalie Pekka Rinne.
+
+## Blog
+
+This was an interesting project that coalesced many of the data ingestion, exploration, wrangling and visualization methods we have thus far learned in ST 558. The NHL Statistics API was free and easy to use, making it quite a good resource for applying the materials learned. Although it did not have all data (I wanted to make a chart of Stanley Cup winners but could not find the appropriate data), there were plenty to use for a variety of tables and plots.
+
+A difficult part of the project for me was in setting up the functions used to query the API and parse the data. Initially I tried to do everything in one function (not good programming practice) but underestimated its complexity. I then reconsidered, and sketched out on a sheet of paper an outline of key components of the function, before implementing them in R in a methodical way. This enabled me to become better organized in my thinking, and made the programming part easier as well. I will keep up this practice going forward.
+
+Another new experience was developing the project on Github from the RStudio IDE. This was less of a learning curve since I've used Git before, albeit only from a CLI, and the obstacles faced here was mostly setting up Git and syncing it with the IDE. Once up and running, I found the commit/pull/push process fairly easy.
+
+My takeaway from the project is that it got me more practice parsing JSON objects, and quite a lot of hands-on experience with `ggplot2`. I was able to use less common plot features such as custom hexadecimal colors, and in reading through the documentation I realized how much flexibility and user options existed in this one package. I don't have a lot of experience in data visualization, and it's a topic I will be exploring further outside the scope of this course.
+
+## My GitHub Project Repository
+https://github.com/yji26/ST558-Project1
